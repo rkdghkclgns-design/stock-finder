@@ -4,6 +4,8 @@
 모바일 반응형으로 제작되었으며, **Supabase Edge Function**을 통해 **Google Gemini API + 검색 그라운딩**으로
 실시간 시장 데이터를 수집·요약합니다.
 
+🔗 **배포 URL**: https://rkdghkclgns-design.github.io/stock-finder/
+
 > ⚠️ **투자 유의** — 본 브리핑은 자동 수집된 공개 데이터 기반의 참고 자료입니다.
 > 투자 결정의 최종 책임은 투자자 본인에게 있습니다.
 
@@ -106,11 +108,11 @@ npx http-server . -p 4321 -c-1
 
 ## 🚀 GitHub Pages 배포
 
-이 저장소는 GitHub Pages(루트 `/`)로 서빙됩니다. 변경 후 푸시하면 자동 반영됩니다.
+이 저장소는 GitHub Pages(루트 `/`)로 서빙됩니다 → **https://rkdghkclgns-design.github.io/stock-finder/**
+변경 후 푸시하면 자동 반영됩니다.
 ```bash
 git add -A && git commit -m "update" && git push
 ```
-배포 URL은 저장소 **Settings → Pages** 에서 확인하세요.
 
 ---
 
