@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0e15" />
+  <meta name="description" content="매일 오전 8시 자동 갱신되는 한국·미국 주식 시장 일일 브리핑. AI 관련주, 거시지표, 투자 전략을 한눈에." />
+  <title>주식 시장 일일 브리핑</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="stylesheet" as="style" crossorigin
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <div id="app" data-state="loading">
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="header-top">
+          <h1 class="app-title"><span class="title-icon">📈</span>주식 시장 일일 브리핑</h1>
+          <div class="header-actions">
+            <button id="btn-force" class="btn-text" type="button" hidden>지금 갱신</button>
+            <button id="btn-reload" class="btn-icon" type="button" aria-label="새로고침" title="새로고침">↻</button>
+          </div>
+        </div>
+        <div class="header-meta">
+          <span id="meta-date" class="meta-date"></span>
+          <span id="meta-asof" class="meta-asof"></span>
+          <span id="meta-source" class="source-chip"></span>
+        </div>
+        <p id="meta-basis" class="meta-basis"></p>
+        <p id="meta-updated" class="meta-updated"></p>
+      </div>
+      <nav id="section-nav" class="section-nav" aria-label="섹션 이동" hidden></nav>
+    </header>
+
+    <main class="app-main">
+      <div id="stale-banner" class="stale-banner" role="status" hidden>
+        ⚠ 오프라인 저장본을 표시 중입니다. 네트워크 연결 후 새로고침하세요.
+      </div>
+
+      <div class="state state-loading" aria-hidden="true">
+        <div class="spinner"></div>
+        <p>브리핑을 불러오는 중…</p>
+      </div>
+
+      <div class="state state-error">
+        <p class="state-emoji">⚠️</p>
+        <p id="error-text" class="state-text"></p>
+        <button id="btn-retry" class="btn-primary" type="button">다시 시도</button>
+      </div>
+
+      <div id="briefing" class="briefing"></div>
+    </main>
+
+    <footer class="page-footer">
+      <p>자동 생성 · Supabase Edge Function + Gemini · 매일 오전 8시(KST) 갱신</p>
+    </footer>
+  </div>
+
+  <script src="assets/config.js"></script>
+  <script src="assets/api.js"></script>
+  <script src="assets/render.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
