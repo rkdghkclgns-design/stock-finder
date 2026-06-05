@@ -15,30 +15,10 @@
   // Mega-cap names treated as relatively lower risk when no other signal exists.
   const BLUE_CHIPS = ["NVDA", "MSFT", "GOOGL", "AAPL", "AMZN", "TSM"];
 
-  // ---- parsing ---------------------------------------------------------------
+  // ---- parsing (shared via window.SF) ---------------------------------------
 
-  /** Parse a price/range string to a number (mean of a range). Percent strings → null. */
-  function parseMoney(str) {
-    if (str === null || str === undefined) return null;
-    const s = String(str).trim();
-    if (!s || s === "-" || /%/.test(s)) return null;
-    const nums = s
-      .split(/[~～]/)
-      .map((p) => {
-        const m = p.replace(/,/g, "").match(/\d+(\.\d+)?/);
-        return m ? parseFloat(m[0]) : null;
-      })
-      .filter((n) => n !== null && !Number.isNaN(n));
-    if (!nums.length) return null;
-    return nums.reduce((a, b) => a + b, 0) / nums.length;
-  }
-
-  /** Parse a signed percentage from a change string ("+15.06%", "-1.66%"). */
-  function parsePct(str) {
-    if (!str) return null;
-    const m = String(str).match(/([+-]?\d+(\.\d+)?)\s*%/);
-    return m ? parseFloat(m[1]) : null;
-  }
+  const parseMoney = window.SF.parseMoney;
+  const parsePct = window.SF.parsePct;
 
   function includesAny(hay, needles) {
     if (!hay) return false;

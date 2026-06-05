@@ -59,6 +59,46 @@ async function triggerRefresh() {
   return body;
 }
 
+/**
+ * Ask the server to ensure the briefing reflects the current time. The Edge
+ * Function self-limits (6h freshness), so this is cheap: it only regenerates
+ * when today's briefing is missing/stale. Returns { ok, status } or throws.
+ */
+async function ensureCurrent() {
+  const c = cfg();
+  const url = `${c.SUPABASE_URL}/functions/v1/generate-briefing`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: c.SUPABASE_KEY,
+      Authorization: `Bearer ${c.SUPABASE_KEY}`,
+    },
+    body: JSON.stringify({ source: "web" }),
+  });
+  return res.json().catch(() => ({ ok: false }));
+}
+
+/** Fetch (and server-cache) an AI analysis for a single company. */
+async function analyzeCompany(company, ticker, market) {
+  const c = cfg();
+  const url = `${c.SUPABASE_URL}/functions/v1/analyze-company`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: c.SUPABASE_KEY,
+      Authorization: `Bearer ${c.SUPABASE_KEY}`,
+    },
+    body: JSON.stringify({ company, ticker, market }),
+  });
+  const body = await res.json().catch(() => ({ ok: false, error: "응답 파싱 실패" }));
+  if (!res.ok && body.ok === undefined) {
+    return { ok: false, error: `분석 요청 실패 (HTTP ${res.status}).` };
+  }
+  return body;
+}
+
 function readCache() {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
@@ -79,6 +119,8 @@ function writeCache(row) {
 window.StockFinderApi = Object.freeze({
   fetchLatestBriefing,
   triggerRefresh,
+  ensureCurrent,
+  analyzeCompany,
   readCache,
   writeCache,
 });

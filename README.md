@@ -47,10 +47,14 @@
 
 ---
 
-## ⚙️ 필수 설정 — Gemini API 키 (1회)
+## ⚙️ 필수 설정 — Gemini API 키 & 결제 크레딧
 
-자동 갱신이 동작하려면 Edge Function에 **`GEMINI_API_KEY`** 시크릿을 등록해야 합니다.
-(키 등록 전까지는 초기 시드 데이터가 그대로 표시됩니다.)
+자동 갱신과 AI 분석이 동작하려면 Edge Function에 **`GEMINI_API_KEY`** 시크릿이 필요합니다.
+
+> 🔴 **현재 상태**: 키는 등록되어 있으나 Gemini 프로젝트의 **결제 크레딧이 소진**되어
+> (`429 RESOURCE_EXHAUSTED`) AI 생성·분석 호출이 실패합니다.
+> [AI Studio → Billing](https://ai.studio/projects) 에서 크레딧을 충전하면 **즉시 정상 동작**합니다.
+> (그동안 브리핑은 마지막 정상 데이터/시드를, 관심 종목 분석은 안내 메시지를 표시합니다.)
 
 ### 1) Gemini API 키 발급
 - https://aistudio.google.com/app/apikey 에서 무료 발급
@@ -123,17 +127,21 @@ git add -A && git commit -m "update" && git push
 ├── index.html                  # 진입점
 ├── assets/
 │   ├── config.js               # Supabase URL + publishable key (공개)
-│   ├── api.js                  # REST 데이터 레이어 + localStorage 캐시
+│   ├── util.js                 # 공용 파싱·차트 기하 헬퍼 (window.SF)
+│   ├── api.js                  # REST 데이터 레이어 + 자동갱신/분석 호출 + 캐시
+│   ├── favorites.js            # 관심 종목 상태 (localStorage)
 │   ├── recommend.js            # 투자 추천 엔진 (기대수익·확신도·리스크 산출)
-│   ├── render.js               # JSON → HTML 렌더링 (XSS 이스케이프)
+│   ├── render.js               # JSON → HTML 렌더링 (시각화·XSS 이스케이프)
+│   ├── app.js                  # 부트스트랩·네비·추천·관심종목·자동갱신·스크롤 복원
 │   └── styles.css              # 모바일 우선 다크 테마 (상승=빨강/하락=파랑)
 ├── supabase/
 │   ├── functions/
-│   │   └── generate-briefing/
-│   │       └── index.ts        # Gemini 그라운딩 → 브리핑 생성 Edge Function
+│   │   ├── generate-briefing/index.ts   # 일일 브리핑 생성 (Gemini 그라운딩)
+│   │   └── analyze-company/index.ts     # 관심 종목 AI 분석 (Gemini 그라운딩)
 │   └── migrations/
 │       ├── ...briefings_table.sql
-│       └── ...daily_cron.sql
+│       ├── ...daily_cron.sql
+│       └── ...company_analysis_table.sql
 └── README.md
 ```
 
@@ -143,6 +151,23 @@ git add -A && git commit -m "update" && git push
   **보유 기간**(단기/중기)을 자동 산출합니다. 산출 로직은 `assets/recommend.js`에 투명하게 구현되어 있습니다.
 - 선택한 성향은 브라우저에 저장(localStorage)되어 재방문 시 유지됩니다.
 - ⚠️ 자동 계산된 **참고 지표**이며 투자 권유가 아닙니다.
+
+## ⭐ 관심 종목 AI 분석
+- 종목 카드의 **☆** 를 누르거나 검색창에 종목명을 입력해 관심 종목을 추가합니다.
+- 추가하면 `analyze-company` Edge Function이 **Gemini + 검색 그라운딩**으로 해당 종목을 분석해
+  **최근 추이(스파크라인)**, 등락, 모멘텀, 상승 촉매, 리스크, 단기/중기 전망, AI 투자 의견을 보여줍니다.
+- 분석 결과는 (종목, 날짜) 단위로 DB에 캐시되어 12시간 내 재요청 시 재생성하지 않습니다.
+- 관심 목록은 localStorage에 저장됩니다. (크레딧 소진 시 안내 메시지 + 다시 시도 버튼 표시)
+
+## 🔁 자동 갱신 & 새로고침
+- 페이지를 열거나 새로고침하면 최신 브리핑을 즉시 표시하고, 백그라운드에서 `generate-briefing`을
+  호출해 **현재 시점**으로 맞춥니다(신선도 6시간 가드 → 불필요한 호출/비용 없음).
+- 새로고침 시 **이전에 보던 스크롤 위치를 복원**합니다(sessionStorage).
+
+## 📊 시각화
+- 상단 **마켓 펄스**(주요 지수 타일 + 시장 방향 배너)
+- AI 종목 카드의 **매수~목표가 게이지**(현재가 위치 표시)
+- 추천 카드의 **기대수익 막대**, 관심 종목 **추이 스파크라인**
 
 ## 🎨 디자인 메모
 - **색상 규칙(국내 관행)**: 상승 🔴 빨강 / 하락 🔵 파랑 / 보합 ⚪ 회색

@@ -4,16 +4,28 @@
 (function () {
   "use strict";
 
-  const { fetchLatestBriefing, triggerRefresh, readCache, writeCache } =
-    window.StockFinderApi;
-  const { renderBriefing, recoCards, recoSummary } = window.StockFinderRender;
+  const {
+    fetchLatestBriefing,
+    triggerRefresh,
+    ensureCurrent,
+    analyzeCompany,
+    readCache,
+    writeCache,
+  } = window.StockFinderApi;
+  const { renderBriefing, recoCards, recoSummary, favCard, analysisBody, analysisError } =
+    window.StockFinderRender;
   const Recommend = window.StockFinderRecommend;
+  const Fav = window.StockFinderFav;
 
   const PROFILE_KEY = "stock_finder:profile";
   const DEFAULT_PROFILE = "balanced";
+  const SCROLL_KEY = "stock_finder:scrollY";
+
+  const analysisCache = new Map(); // favKey -> { state: 'loading'|'ok'|'error', data?, needsKey? }
 
   const SECTION_LABELS = {
     "key-issues": "핵심 이슈",
+    fav: "관심",
     reco: "추천",
     domestic: "국내",
     overseas: "해외",
@@ -160,6 +172,8 @@
     $("#briefing").innerHTML = renderBriefing(data);
     buildNav();
     setupRecommendations(data);
+    setupFavorites();
+    syncStars();
 
     const banner = $("#stale-banner");
     banner.hidden = !stale;
@@ -219,6 +233,174 @@
     paint(current);
   }
 
+  // ---- favorites + AI analysis ----------------------------------------------
+
+  function favBody(key) {
+    const els = document.querySelectorAll("[data-fav-body]");
+    for (const el of els) {
+      if (el.getAttribute("data-fav-body") === key) return el;
+    }
+    return null;
+  }
+
+  function syncStars() {
+    if (!Fav) return;
+    document.querySelectorAll(".fav-star").forEach((b) => {
+      const on = Fav.isFavorite(b.dataset.favKey);
+      b.classList.toggle("is-fav", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.textContent = on ? "★" : "☆";
+    });
+  }
+
+  function setupFavorites() {
+    if (!Fav) return;
+    const listEl = $("#fav-list");
+    const emptyEl = $("#fav-empty");
+    if (!listEl) return;
+    const favs = Fav.getFavorites();
+    if (emptyEl) emptyEl.hidden = favs.length > 0;
+    listEl.innerHTML = favs.map((f) => favCard(f)).join("");
+    favs.forEach((f) => loadAnalysis(f));
+  }
+
+  async function loadAnalysis(item) {
+    const fill = (html) => {
+      const el = favBody(item.key);
+      if (el) el.innerHTML = html;
+    };
+    const cached = analysisCache.get(item.key);
+    if (cached) {
+      if (cached.state === "ok") return fill(analysisBody(cached.data));
+      if (cached.state === "error") return fill(analysisError(cached.needsKey));
+      if (cached.state === "loading") return; // an in-flight request will fill it
+    }
+    analysisCache.set(item.key, { state: "loading" });
+    try {
+      const res = await analyzeCompany(item.name, item.ticker, item.market);
+      if (res && res.ok && res.data) {
+        analysisCache.set(item.key, { state: "ok", data: res.data });
+        fill(analysisBody(res.data));
+      } else {
+        const needsKey = !!(res && res.needs_key);
+        analysisCache.set(item.key, { state: "error", needsKey });
+        fill(analysisError(needsKey));
+      }
+    } catch {
+      analysisCache.set(item.key, { state: "error", needsKey: false });
+      fill(analysisError(false));
+    }
+  }
+
+  function addFavoriteFromInput() {
+    const input = $("#fav-input");
+    if (!input || !Fav) return;
+    const name = input.value.trim();
+    if (!name) return;
+    Fav.addFavorite({ key: Fav.favKey(name, ""), name, ticker: "", market: "" });
+    input.value = "";
+    syncStars();
+    setupFavorites();
+  }
+
+  function onBriefingClick(e) {
+    if (!Fav) return;
+    if (e.target.closest("#fav-add-btn")) {
+      addFavoriteFromInput();
+      return;
+    }
+    const star = e.target.closest(".fav-star");
+    if (star) {
+      Fav.toggleFavorite({
+        key: star.dataset.favKey,
+        name: star.dataset.favName,
+        ticker: star.dataset.favTicker || "",
+        market: star.dataset.favMarket || "",
+      });
+      syncStars();
+      setupFavorites();
+      return;
+    }
+    const remove = e.target.closest(".fav-remove");
+    if (remove) {
+      Fav.removeFavorite(remove.dataset.favRemove);
+      syncStars();
+      setupFavorites();
+      return;
+    }
+    const retry = e.target.closest(".fav-retry");
+    if (retry) {
+      const card = retry.closest("[data-fav-card]");
+      const key = card && card.getAttribute("data-fav-card");
+      if (!key) return;
+      analysisCache.delete(key);
+      const fav = Fav.getFavorites().find((f) => f.key === key);
+      if (fav) loadAnalysis(fav);
+    }
+  }
+
+  function onBriefingKeydown(e) {
+    if (e.key === "Enter" && e.target && e.target.id === "fav-input") {
+      e.preventDefault();
+      addFavoriteFromInput();
+    }
+  }
+
+  // ---- auto-update + scroll position ----------------------------------------
+
+  // Bring the briefing to "now": the server regenerates only if today's is
+  // missing/stale (6h freshness). If a fresh one is produced, swap it in.
+  async function maybeAutoUpdate() {
+    try {
+      const res = await ensureCurrent();
+      if (res && res.ok && res.status === "generated") {
+        const row = await fetchLatestBriefing();
+        withScrollPreserved(() => render(row, { stale: false }));
+      }
+    } catch {
+      /* offline / billing / transient — keep showing current data */
+    }
+  }
+
+  function saveScroll() {
+    try {
+      sessionStorage.setItem(SCROLL_KEY, String(Math.round(window.scrollY)));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function restoreScroll() {
+    let y = 0;
+    try {
+      y = parseInt(sessionStorage.getItem(SCROLL_KEY) || "0", 10) || 0;
+    } catch {
+      y = 0;
+    }
+    if (y <= 0) return;
+    const go = () => scrollToInstant(y);
+    requestAnimationFrame(go);
+    setTimeout(go, 150); // after async layout settles
+  }
+
+  // Force an INSTANT scroll even when CSS `scroll-behavior: smooth` is active
+  // (we are restoring/preserving a position, not animating to it).
+  function scrollToInstant(y) {
+    const html = document.documentElement;
+    const prev = html.style.scrollBehavior;
+    html.style.scrollBehavior = "auto";
+    window.scrollTo(0, y);
+    html.style.scrollBehavior = prev;
+  }
+
+  function withScrollPreserved(fn) {
+    const y = window.scrollY;
+    fn();
+    const go = () => scrollToInstant(y);
+    requestAnimationFrame(go);
+    setTimeout(go, 60);
+  }
+
   function showError(message) {
     $("#app").dataset.state = "error";
     $("#error-text").textContent = message || "데이터를 불러오지 못했습니다.";
@@ -229,10 +411,13 @@
     try {
       const row = await fetchLatestBriefing();
       render(row, { stale: false });
+      restoreScroll();
+      maybeAutoUpdate(); // bring to "now" in the background
     } catch (err) {
       const cached = readCache();
       if (cached) {
         render(cached, { stale: true });
+        restoreScroll();
       } else {
         showError(String(err.message || err));
       }
@@ -245,6 +430,14 @@
     $("#btn-reload").addEventListener("click", load);
     const retry = $("#btn-retry");
     if (retry) retry.addEventListener("click", load);
+
+    // Delegated handlers on the persistent #briefing container (survives re-render).
+    const briefing = $("#briefing");
+    if (briefing) {
+      briefing.addEventListener("click", onBriefingClick);
+      briefing.addEventListener("keydown", onBriefingKeydown);
+    }
+    window.addEventListener("scroll", saveScroll, { passive: true });
 
     const cfg = window.STOCK_FINDER_CONFIG;
     const forceBtn = $("#btn-force");

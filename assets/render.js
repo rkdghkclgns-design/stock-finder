@@ -200,6 +200,7 @@
   function usStockCard(s) {
     return `
       <article class="stock-card">
+        ${favStar(s.name, s.ticker, "US")}
         <div class="stock-head">
           <div class="stock-id">
             <span class="stock-name">${esc(s.name)}</span>
@@ -210,6 +211,7 @@
             ${badge(s.change, s.direction)}
           </div>
         </div>
+        ${priceGauge(s.buy, s.price, s.sell)}
         ${has(s.note) ? `<p class="stock-note">${esc(s.note)}</p>` : ""}
         ${tradeChips(s.buy, s.sell)}
       </article>`;
@@ -221,6 +223,7 @@
     if (has(s.target)) meta.push(`<span class="meta-chip meta-target">목표가 ${esc(s.target)}</span>`);
     return `
       <article class="stock-card">
+        ${favStar(s.name, s.code, "KR")}
         <div class="stock-head">
           <div class="stock-id">
             <span class="stock-name">${esc(s.name)}</span>
@@ -232,6 +235,7 @@
           </div>
         </div>
         ${meta.length ? `<div class="stock-meta">${meta.join("")}</div>` : ""}
+        ${priceGauge(s.buy, s.price, s.sell)}
         ${has(s.reason) ? `<p class="stock-note">${esc(s.reason)}</p>` : ""}
         ${tradeChips(s.buy, s.sell)}
       </article>`;
@@ -422,6 +426,7 @@
         const market = r.market === "KR" ? "국내" : "해외";
         return `
         <article class="reco-card ${convCls}">
+          ${favStar(r.name, r.id, r.market)}
           <div class="reco-card-head">
             <div class="reco-id">
               <span class="reco-conv">${esc(CONV_LABEL[r.conviction] || "관심")}</span>
@@ -433,6 +438,7 @@
               ${exp}
             </div>
           </div>
+          ${returnBar(r.expReturn)}
           <div class="reco-tags">
             <span class="reco-tag tag-action">${esc(r.action)}</span>
             <span class="reco-tag risk-${r.risk}">위험 ${RISK_LABEL[r.risk] || "중간"}</span>
@@ -466,6 +472,165 @@
     );
   }
 
+  // ---- visualization helpers -------------------------------------------------
+
+  /** Horizontal gauge showing where `current` sits between buy(low) and target(high). */
+  function priceGauge(buy, current, sell) {
+    const pos = window.SF.pricePosition(buy, current, sell);
+    if (pos === null) return "";
+    const pct = Math.round(pos * 100);
+    return `
+      <div class="gauge" title="매수가~목표가 구간 내 현재가 위치">
+        <div class="gauge-track">
+          <div class="gauge-fill" style="width:${pct}%"></div>
+          <span class="gauge-marker" style="left:${pct}%"></span>
+        </div>
+        <div class="gauge-ends">
+          <span>매수 ${esc(buy)}</span>
+          <span>목표 ${esc(sell)}</span>
+        </div>
+      </div>`;
+  }
+
+  /** Expected-return magnitude bar (±25% maps to full width). */
+  function returnBar(expReturn) {
+    if (expReturn === null || expReturn === undefined) return "";
+    const mag = window.SF.clamp(Math.abs(expReturn) / 25, 0, 1) * 100;
+    const cls = expReturn >= 0 ? "ret-up" : "ret-down";
+    return `<div class="ret-bar"><div class="ret-fill ${cls}" style="width:${mag.toFixed(0)}%"></div></div>`;
+  }
+
+  /** Inline SVG sparkline from trend points. */
+  function sparkline(points, direction) {
+    const W = 132;
+    const H = 40;
+    const g = window.SF.sparkPath(points, W, H, 3);
+    if (!g) return "";
+    const up = direction === "up" ? true : direction === "down" ? false : g.up;
+    return `<svg class="spark ${up ? "spark-up" : "spark-down"}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+      <polyline class="spark-area" points="${g.area}" />
+      <polyline class="spark-line" points="${g.line}" />
+    </svg>`;
+  }
+
+  /** Favorite star toggle button (state reconciled by app.js). */
+  function favStar(name, ticker, market) {
+    const fav = window.StockFinderFav;
+    const key = fav ? fav.favKey(name, ticker) : `${ticker || ""}|${name || ""}`.toLowerCase();
+    const on = fav && fav.isFavorite(key);
+    return `<button class="fav-star${on ? " is-fav" : ""}" type="button" aria-label="관심 종목 추가/제거" aria-pressed="${on ? "true" : "false"}" data-fav-key="${esc(key)}" data-fav-name="${esc(name)}" data-fav-ticker="${esc(ticker || "")}" data-fav-market="${esc(market || "")}">${on ? "★" : "☆"}</button>`;
+  }
+
+  // ---- market pulse (hero) ---------------------------------------------------
+
+  function pulseTile(ix) {
+    return `<div class="pulse-tile pulse-${dirClass(ix.direction)}">
+      <span class="pulse-name">${esc(ix.name)}</span>
+      <span class="pulse-value">${esc(ix.value)}</span>
+      ${badge(ix.change, ix.direction)}
+    </div>`;
+  }
+
+  function marketPulse(b) {
+    const dom = list(b.domestic && b.domestic.indices);
+    const us = list(b.overseas && b.overseas.us);
+    const tiles = dom.concat(us).slice(0, 5);
+    if (!tiles.length) return "";
+    const s = b.strategy || {};
+    const banner = has(s.direction)
+      ? `<div class="pulse-banner">
+          <span class="pulse-dot pulse-${dirClass(strategyDir(s.direction))}"></span>
+          <span class="pulse-dir">${esc(s.direction)}</span>
+          ${has(s.direction_note) ? `<span class="pulse-note">${esc(s.direction_note)}</span>` : ""}
+        </div>`
+      : "";
+    return `<div class="pulse">
+      <div class="pulse-row">${tiles.map(pulseTile).join("")}</div>
+      ${banner}
+    </div>`;
+  }
+
+  // crude sentiment from a Korean market-direction phrase
+  function strategyDir(text) {
+    const t = String(text || "");
+    if (/(상승|반등|강세|회복)/.test(t) && !/(하락|약세)/.test(t)) return "up";
+    if (/(하락|약세|조정|하방)/.test(t) && !/(상승|반등|강세)/.test(t)) return "down";
+    return "flat";
+  }
+
+  // ---- favorites -------------------------------------------------------------
+
+  function favSection() {
+    const inner = `
+      <p class="fav-intro">관심 종목을 추가하면 AI가 <b>최근 추이</b>와 <b>전망</b>을 분석해 드립니다.</p>
+      <div class="fav-add">
+        <input id="fav-input" class="fav-input" type="text" inputmode="text"
+               placeholder="종목명 입력 후 추가 (예: 카카오, AAPL)" aria-label="관심 종목 추가" />
+        <button id="fav-add-btn" class="fav-add-btn" type="button">추가</button>
+      </div>
+      <div id="fav-list" class="fav-list"></div>
+      <p id="fav-empty" class="fav-empty">아직 관심 종목이 없습니다. 종목 카드의 ☆ 를 누르거나 위에서 검색해 추가해 보세요.</p>`;
+    return section("fav", "⭐", "관심 종목 AI 분석", inner);
+  }
+
+  /** Placeholder card shown while the analysis loads. */
+  function favCard(item) {
+    return `<article class="fav-card" data-fav-card="${esc(item.key)}">
+      <div class="fav-card-head">
+        <div class="fav-id">
+          <span class="fav-name">${esc(item.name)}</span>
+          ${item.ticker ? `<span class="fav-ticker">${esc(item.ticker)}</span>` : ""}
+        </div>
+        <button class="fav-remove" type="button" data-fav-remove="${esc(item.key)}" aria-label="관심 종목 제거" title="제거">★</button>
+      </div>
+      <div class="fav-body" data-fav-body="${esc(item.key)}">
+        <div class="fav-loading"><span class="spinner spinner-sm"></span> AI 분석 불러오는 중…</div>
+      </div>
+    </article>`;
+  }
+
+  function miniList(arr) {
+    return list(arr).length
+      ? `<ul class="mini-list">${list(arr).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`
+      : "";
+  }
+
+  /** Render the analysis content into a favorite card body. */
+  function analysisBody(a) {
+    if (!a) return analysisError(false);
+    const t = a.trend || {};
+    return `
+      ${has(a.summary) ? `<p class="fav-summary">${esc(a.summary)}</p>` : ""}
+      <div class="fav-trend">
+        ${sparkline(t.points, t.direction)}
+        <div class="fav-trend-meta">
+          ${badge(t.change, t.direction)}
+          ${has(t.period) ? `<span class="fav-period">${esc(t.period)}</span>` : ""}
+          ${has(a.price) ? `<span class="fav-price">${esc(a.price)}</span>` : ""}
+        </div>
+      </div>
+      ${has(a.momentum) ? `<p class="fav-line"><b>모멘텀</b> ${esc(a.momentum)}</p>` : ""}
+      <div class="fav-cols">
+        ${list(a.catalysts).length ? `<div class="fav-col"><h4 class="fav-h4 h4-up">상승 촉매</h4>${miniList(a.catalysts)}</div>` : ""}
+        ${list(a.risks).length ? `<div class="fav-col"><h4 class="fav-h4 h4-down">리스크</h4>${miniList(a.risks)}</div>` : ""}
+      </div>
+      ${has(a.outlook_short) ? `<p class="fav-line"><b>단기</b> ${esc(a.outlook_short)}</p>` : ""}
+      ${has(a.outlook_mid) ? `<p class="fav-line"><b>중기</b> ${esc(a.outlook_mid)}</p>` : ""}
+      ${has(a.valuation) ? `<p class="fav-line"><b>밸류</b> ${esc(a.valuation)}</p>` : ""}
+      ${has(a.stance) ? `<div class="fav-stance">AI 투자 의견 · <b>${esc(a.stance)}</b></div>` : ""}`;
+  }
+
+  function analysisError(needsKey) {
+    const hint = needsKey
+      ? "Gemini API 키 설정이 필요합니다."
+      : "AI 사용량·결제 한도 또는 일시적 오류일 수 있어요.";
+    return `<div class="fav-error">
+      <span class="fav-error-msg">⚠ AI 분석을 불러오지 못했습니다.</span>
+      <span class="fav-error-hint">${esc(hint)}</span>
+      <button class="fav-retry" type="button">다시 시도</button>
+    </div>`;
+  }
+
   // ---- section wrapper + top-level -------------------------------------------
 
   function section(id, icon, title, innerHtml) {
@@ -481,7 +646,9 @@
   function renderBriefing(b) {
     if (!b) return "";
     return (
+      marketPulse(b) +
       keyIssues(b.key_issues) +
+      favSection() +
       recoSection() +
       domestic(b.domestic) +
       overseas(b.overseas) +
@@ -496,6 +663,9 @@
     renderBriefing,
     recoCards,
     recoSummary,
+    favCard,
+    analysisBody,
+    analysisError,
     esc,
   });
 })();
