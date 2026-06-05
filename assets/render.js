@@ -385,6 +385,87 @@
     return `<footer class="briefing-footer">${srcBlock}${disc}</footer>`;
   }
 
+  // ---- section: recommendations ---------------------------------------------
+
+  const RISK_LABEL = { low: "낮음", mid: "중간", high: "높음" };
+  const CONV_LABEL = { 3: "강력 추천", 2: "추천", 1: "관심" };
+
+  /** Static shell for the recommendation section (list filled by app.js). */
+  function recoSection() {
+    const reco = window.StockFinderRecommend;
+    if (!reco || !reco.PROFILES || !reco.PROFILES.length) return "";
+    const pills = reco.PROFILES.map(
+      (p, i) =>
+        `<button class="reco-profile${i === 1 ? " active" : ""}" type="button" role="tab" data-profile="${esc(p.id)}" title="${esc(p.desc)}">${esc(p.label)}</button>`
+    ).join("");
+    const inner = `
+      <p class="reco-intro">투자 성향을 선택하면 오늘 브리핑 데이터를 분석해 <b>기대 수익률</b>과 함께 종목을 추천합니다.</p>
+      <div class="reco-profiles" role="tablist">${pills}</div>
+      <div id="reco-summary" class="reco-summary"></div>
+      <div id="reco-list" class="reco-list"></div>
+      <p class="reco-disc">⚠ 추천은 브리핑의 매수가·목표가 등 공개 데이터로 자동 계산한 <b>참고 지표</b>이며, 투자 권유가 아닙니다. 최종 판단과 책임은 투자자 본인에게 있습니다.</p>`;
+    return section("reco", "💡", "오늘의 투자 추천", inner);
+  }
+
+  /** Render the recommendation cards for an already-filtered list. */
+  function recoCards(recs) {
+    if (!recs || !recs.length) {
+      return `<p class="reco-empty">현재 성향에 맞는 추천 종목이 없습니다.</p>`;
+    }
+    return recs
+      .map((r) => {
+        const convCls = r.conviction === 3 ? "conv-strong" : r.conviction === 2 ? "conv-mid" : "conv-watch";
+        const exp =
+          r.expReturn != null
+            ? `<span class="reco-exp ${r.expReturn >= 0 ? "exp-up" : "exp-down"}">${r.expReturn >= 0 ? "+" : ""}${Math.round(r.expReturn)}%</span>`
+            : `<span class="reco-exp exp-flat">—</span>`;
+        const market = r.market === "KR" ? "국내" : "해외";
+        return `
+        <article class="reco-card ${convCls}">
+          <div class="reco-card-head">
+            <div class="reco-id">
+              <span class="reco-conv">${esc(CONV_LABEL[r.conviction] || "관심")}</span>
+              <span class="reco-name">${esc(r.name)}</span>
+              <span class="reco-market">${market}${r.id ? " · " + esc(r.id) : ""}</span>
+            </div>
+            <div class="reco-exp-wrap">
+              <span class="reco-exp-label">기대수익</span>
+              ${exp}
+            </div>
+          </div>
+          <div class="reco-tags">
+            <span class="reco-tag tag-action">${esc(r.action)}</span>
+            <span class="reco-tag risk-${r.risk}">위험 ${RISK_LABEL[r.risk] || "중간"}</span>
+            <span class="reco-tag tag-horizon">${esc(r.horizon)}</span>
+          </div>
+          <div class="reco-prices">
+            ${has(r.entry) ? `<span class="reco-price"><b>진입</b> ${esc(r.entry)}</span>` : ""}
+            ${has(r.target) ? `<span class="reco-price"><b>목표</b> ${esc(r.target)}</span>` : ""}
+            ${has(r.price) ? `<span class="reco-price"><b>현재</b> ${esc(r.price)}</span>` : ""}
+          </div>
+          ${has(r.reason) ? `<p class="reco-reason">${esc(r.reason)}</p>` : ""}
+        </article>`;
+      })
+      .join("");
+  }
+
+  /** Compact summary line above the cards. */
+  function recoSummary(recs, profileLabel) {
+    if (!recs || !recs.length) return "";
+    const withExp = recs.filter((r) => r.expReturn != null);
+    const avg = withExp.length
+      ? Math.round(withExp.reduce((a, r) => a + r.expReturn, 0) / withExp.length)
+      : null;
+    const strong = recs.filter((r) => r.conviction === 3).length;
+    return (
+      `<span class="reco-sum-item"><b>${esc(profileLabel)}</b> 추천 ${recs.length}종목</span>` +
+      (avg != null
+        ? `<span class="reco-sum-item">평균 기대수익 <b class="${avg >= 0 ? "exp-up" : "exp-down"}">${avg >= 0 ? "+" : ""}${avg}%</b></span>`
+        : "") +
+      (strong ? `<span class="reco-sum-item">강력추천 ${strong}종목</span>` : "")
+    );
+  }
+
   // ---- section wrapper + top-level -------------------------------------------
 
   function section(id, icon, title, innerHtml) {
@@ -401,6 +482,7 @@
     if (!b) return "";
     return (
       keyIssues(b.key_issues) +
+      recoSection() +
       domestic(b.domestic) +
       overseas(b.overseas) +
       aiStocks(b.ai_stocks) +
@@ -410,5 +492,10 @@
     );
   }
 
-  window.StockFinderRender = Object.freeze({ renderBriefing, esc });
+  window.StockFinderRender = Object.freeze({
+    renderBriefing,
+    recoCards,
+    recoSummary,
+    esc,
+  });
 })();

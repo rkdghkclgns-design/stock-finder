@@ -6,10 +6,15 @@
 
   const { fetchLatestBriefing, triggerRefresh, readCache, writeCache } =
     window.StockFinderApi;
-  const { renderBriefing } = window.StockFinderRender;
+  const { renderBriefing, recoCards, recoSummary } = window.StockFinderRender;
+  const Recommend = window.StockFinderRecommend;
+
+  const PROFILE_KEY = "stock_finder:profile";
+  const DEFAULT_PROFILE = "balanced";
 
   const SECTION_LABELS = {
     "key-issues": "핵심 이슈",
+    reco: "추천",
     domestic: "국내",
     overseas: "해외",
     ai: "AI",
@@ -83,56 +88,135 @@
       .join("");
     nav.hidden = false;
 
-    // Smooth scroll (with sticky-header offset handled by CSS scroll-margin-top).
-    nav.querySelectorAll(".nav-pill").forEach((pill) => {
-      pill.addEventListener("click", (e) => {
-        e.preventDefault();
-        const id = pill.getAttribute("data-target");
-        const target = document.getElementById(`sec-${id}`);
-        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    });
-
+    // Nav pills are plain in-page anchors (href="#sec-..."). Native hash
+    // navigation + CSS `scroll-behavior: smooth` + `scroll-margin-top` handles
+    // smooth scrolling and the sticky-nav offset. This is far more robust than a
+    // JS scrollIntoView (whose use inside the scroll-spy caused the jump-to-top bug).
     setupScrollSpy(sections, nav);
   }
 
+  let removeScrollSpy = null;
+
   function setupScrollSpy(sections, nav) {
+    // Detach any spy from a previous render() to avoid stacking listeners.
+    if (removeScrollSpy) removeScrollSpy();
+
     const pills = new Map(
       Array.from(nav.querySelectorAll(".nav-pill")).map((p) => [
         p.getAttribute("data-target"),
         p,
       ])
     );
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          const id = entry.target.getAttribute("data-section");
-          pills.forEach((p) => p.classList.remove("active"));
-          const active = pills.get(id);
-          if (active) {
-            active.classList.add("active");
-            active.scrollIntoView({ block: "nearest", inline: "center" });
-          }
-        });
-      },
-      { rootMargin: "-45% 0px -50% 0px", threshold: 0 }
-    );
-    sections.forEach((s) => observer.observe(s));
+    let lastId = null;
+
+    // Active section = the last one whose top has passed the probe line (28% down).
+    const update = () => {
+      const probe = window.innerHeight * 0.28;
+      let currentId = sections[0].getAttribute("data-section");
+      for (const s of sections) {
+        if (s.getBoundingClientRect().top - probe <= 0) {
+          currentId = s.getAttribute("data-section");
+        } else {
+          break;
+        }
+      }
+      if (currentId === lastId) return;
+      lastId = currentId;
+      pills.forEach((p, id) => p.classList.toggle("active", id === currentId));
+      const active = pills.get(currentId);
+      if (active) centerPillInNav(nav, active); // horizontal nav scroll only
+    };
+
+    // Call update() directly (cheap, self-guarded by lastId). We avoid
+    // requestAnimationFrame here because it is throttled/paused when the page
+    // is backgrounded, which would freeze the highlight.
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update, { passive: true });
+    removeScrollSpy = () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+    update();
+  }
+
+  /**
+   * Center the active pill within the nav by scrolling the nav HORIZONTALLY only.
+   * (Using element.scrollIntoView here would scroll the whole document to the
+   * sticky nav's in-flow position at the top of the page — the jump-to-top bug.)
+   */
+  function centerPillInNav(nav, pill) {
+    const navRect = nav.getBoundingClientRect();
+    const pillRect = pill.getBoundingClientRect();
+    const delta =
+      pillRect.left - navRect.left - (nav.clientWidth - pill.offsetWidth) / 2;
+    nav.scrollTo({ left: nav.scrollLeft + delta, behavior: "smooth" });
   }
 
   // ---- render orchestration --------------------------------------------------
 
   function render(row, { stale = false } = {}) {
+    const data = row.data || {};
     renderHeader(row);
-    $("#briefing").innerHTML = renderBriefing(row.data || {});
+    $("#briefing").innerHTML = renderBriefing(data);
     buildNav();
+    setupRecommendations(data);
 
     const banner = $("#stale-banner");
     banner.hidden = !stale;
 
     $("#app").dataset.state = "ready";
     writeCache(row);
+  }
+
+  // ---- recommendations -------------------------------------------------------
+
+  function loadProfile() {
+    try {
+      return localStorage.getItem(PROFILE_KEY);
+    } catch {
+      return null;
+    }
+  }
+  function saveProfile(id) {
+    try {
+      localStorage.setItem(PROFILE_KEY, id);
+    } catch {
+      /* storage unavailable; ignore */
+    }
+  }
+
+  function setupRecommendations(data) {
+    if (!Recommend) return;
+    const wrap = document.querySelector(".reco-profiles");
+    if (!wrap) return;
+
+    const recs = Recommend.build(data);
+    const stored = loadProfile();
+    let current = Recommend.PROFILES.some((p) => p.id === stored)
+      ? stored
+      : DEFAULT_PROFILE;
+
+    const paint = (profileId) => {
+      const prof = Recommend.PROFILES.find((p) => p.id === profileId);
+      const list = Recommend.filter(recs, profileId);
+      const listEl = $("#reco-list");
+      const sumEl = $("#reco-summary");
+      if (listEl) listEl.innerHTML = recoCards(list);
+      if (sumEl) sumEl.innerHTML = recoSummary(list, prof ? prof.label : "");
+      wrap.querySelectorAll(".reco-profile").forEach((b) =>
+        b.classList.toggle("active", b.dataset.profile === profileId)
+      );
+    };
+
+    wrap.addEventListener("click", (e) => {
+      const btn = e.target.closest(".reco-profile");
+      if (!btn) return;
+      current = btn.dataset.profile;
+      saveProfile(current);
+      paint(current);
+    });
+
+    paint(current);
   }
 
   function showError(message) {

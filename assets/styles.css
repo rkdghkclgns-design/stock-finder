@@ -38,6 +38,10 @@
 * { box-sizing: border-box; }
 
 html { -webkit-text-size-adjust: 100%; }
+/* Smooth in-page nav only when the user hasn't requested reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
 
 body {
   margin: 0;
@@ -579,6 +583,115 @@ a { color: var(--accent-2); }
 }
 .risk-name { font-weight: 700; font-size: 0.9rem; color: var(--up); }
 .risk-detail { font-size: 0.82rem; color: var(--text-dim); margin-top: 3px; }
+
+/* ---- recommendations ------------------------------------------------------ */
+
+.reco-intro { margin: 0 0 14px; font-size: 0.88rem; color: var(--text-dim); }
+.reco-intro b { color: var(--text); }
+
+.reco-profiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  margin-bottom: 14px;
+}
+.reco-profile {
+  padding: 10px 6px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.reco-profile:hover { color: var(--text); }
+.reco-profile.active {
+  background: var(--accent);
+  color: #0b0e15;
+  box-shadow: 0 2px 10px rgba(245, 185, 69, 0.28);
+}
+
+.reco-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-bottom: 12px;
+  font-size: 0.82rem;
+  color: var(--text-mute);
+}
+.reco-summary b { color: var(--text); }
+.reco-summary .exp-up { color: var(--up); }
+.reco-summary .exp-down { color: var(--down); }
+
+.reco-list { display: grid; grid-template-columns: 1fr; gap: 12px; }
+
+.reco-card {
+  padding: 14px;
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--flat);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.reco-card.conv-strong { border-left-color: var(--accent); }
+.reco-card.conv-mid { border-left-color: var(--accent-2); }
+
+.reco-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.reco-id { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.reco-conv {
+  align-self: flex-start;
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 7px;
+  background: var(--surface-3);
+  color: var(--text-dim);
+}
+.conv-strong .reco-conv { background: rgba(245, 185, 69, 0.16); color: var(--accent); }
+.conv-mid .reco-conv { background: rgba(52, 208, 192, 0.14); color: var(--accent-2); }
+.reco-name { font-size: 1.04rem; font-weight: 800; letter-spacing: -0.01em; }
+.reco-market { font-size: 0.74rem; color: var(--text-mute); font-weight: 600; }
+
+.reco-exp-wrap { text-align: right; flex-shrink: 0; }
+.reco-exp-label { display: block; font-size: 0.68rem; color: var(--text-mute); font-weight: 700; }
+.reco-exp { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.reco-exp.exp-up { color: var(--up); }
+.reco-exp.exp-down { color: var(--down); }
+.reco-exp.exp-flat { color: var(--text-mute); }
+
+.reco-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.reco-tag { font-size: 0.74rem; font-weight: 700; padding: 4px 9px; border-radius: 8px; background: var(--surface-3); color: var(--text-dim); }
+.reco-tag.tag-action { background: rgba(245, 185, 69, 0.12); color: var(--accent); }
+.reco-tag.risk-low { background: rgba(52, 208, 192, 0.12); color: var(--accent-2); }
+.reco-tag.risk-mid { background: rgba(245, 185, 69, 0.12); color: var(--accent); }
+.reco-tag.risk-high { background: var(--up-bg); color: var(--up); }
+
+.reco-prices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 12px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.reco-price b { color: var(--text-mute); font-weight: 700; margin-right: 3px; font-size: 0.72rem; }
+
+.reco-reason { margin: 10px 0 0; font-size: 0.83rem; color: var(--text-dim); }
+.reco-empty { padding: 24px; text-align: center; color: var(--text-mute); }
+.reco-disc { margin: 14px 0 0; font-size: 0.74rem; color: var(--text-mute); line-height: 1.6; }
+.reco-disc b { color: var(--text-dim); }
+
+@media (min-width: 560px) {
+  .reco-list { grid-template-columns: repeat(2, 1fr); }
+}
 
 /* ---- footer --------------------------------------------------------------- */
 
