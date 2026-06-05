@@ -14,29 +14,30 @@
 </head>
 <body>
   <div id="app" data-state="loading">
-    <header class="app-header">
-      <div class="header-inner">
-        <div class="header-top">
-          <h1 class="app-title"><span class="title-icon">📈</span>주식 시장 일일 브리핑</h1>
-          <div class="header-actions">
-            <button id="btn-force" class="btn-text" type="button" hidden>지금 갱신</button>
-            <button id="btn-reload" class="btn-icon" type="button" aria-label="새로고침" title="새로고침">↻</button>
-          </div>
+    <header class="app-bar">
+      <div class="app-bar-inner">
+        <div class="app-brand"><span class="title-icon">📈</span><span class="brand-text">주식 브리핑</span></div>
+        <nav id="section-nav" class="section-nav" aria-label="섹션 이동" hidden></nav>
+        <div class="header-actions">
+          <button id="btn-force" class="btn-text" type="button" hidden>지금 갱신</button>
+          <button id="btn-reload" class="btn-icon" type="button" aria-label="새로고침" title="새로고침">↻</button>
         </div>
-        <div class="header-meta">
-          <span id="meta-date" class="meta-date"></span>
-          <span id="meta-asof" class="meta-asof"></span>
-          <span id="meta-source" class="source-chip"></span>
-        </div>
-        <p id="meta-basis" class="meta-basis"></p>
-        <p id="meta-updated" class="meta-updated"></p>
       </div>
-      <nav id="section-nav" class="section-nav" aria-label="섹션 이동" hidden></nav>
     </header>
 
     <main class="app-main">
       <div id="stale-banner" class="stale-banner" role="status" hidden>
         ⚠ 오프라인 저장본을 표시 중입니다. 네트워크 연결 후 새로고침하세요.
+      </div>
+
+      <div class="report-head">
+        <div class="report-head-row">
+          <h1 id="meta-date" class="meta-date"></h1>
+          <span id="meta-asof" class="meta-asof"></span>
+          <span id="meta-source" class="source-chip"></span>
+        </div>
+        <p id="meta-basis" class="meta-basis"></p>
+        <p id="meta-updated" class="meta-updated"></p>
       </div>
 
       <div class="state state-loading" aria-hidden="true">
